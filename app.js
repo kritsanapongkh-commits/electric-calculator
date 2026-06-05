@@ -2,24 +2,14 @@
 // RENTAL ELECTRICITY APP - CORE JS ENGINE (V3)
 // ==========================================
 
-// TODO: Replace this placeholder with your project's Firebase configuration keys from the Firebase Console.
-// If you leave these values as placeholders, the app will run in "Offline mode" using LocalStorage.
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyAN5tl2iwidzQeAMJ1l2-hr6nxEG7pguKM",
-  authDomain: "rental-electricity.firebaseapp.com",
-  projectId: "rental-electricity",
-  storageBucket: "rental-electricity.firebasestorage.app",
-  messagingSenderId: "718134464187",
-  appId: "1:718134464187:web:2ead6afa578692223da39e",
-  measurementId: "G-XRPZBZ1PPC"
+    apiKey: "AIzaSyAN5tl2iwidzQeAMJ1l2-hr6nxEG7pguKM",
+    authDomain: "rental-electricity.firebaseapp.com",
+    projectId: "rental-electricity",
+    storageBucket: "rental-electricity.firebasestorage.app",
+    messagingSenderId: "718134464187",
+    appId: "1:718134464187:web:2ead6afa578692223da39e"
 };
 
 // Initialize Firebase
