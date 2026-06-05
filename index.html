@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบคำนวณค่าไฟรายเดือน - Rental Electricity App</title>
+
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- เพิ่ม 2 บรรทัดนี้ -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1976d2">
+
+    <!-- Chart.js for premium interactive charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body data-theme="light">
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="auth-wrapper">
+        <div class="auth-card fade-in">
+            <div class="auth-logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <h1>คำนวณค่าไฟรายเดือน</h1>
+            <p>กรุณาลงชื่อเข้าใช้งานสำหรับผู้ดูแลระบบ</p>
+            
+            <div id="login-error" class="auth-error">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง!</div>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="username">ชื่อผู้ใช้งาน (Username)</label>
+                    <input type="text" id="username" class="input-control" required placeholder="admin" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="password">รหัสผ่าน (Password)</label>
+                    <input type="password" id="password" class="input-control" required placeholder="••••••••" autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 24px;">
+                    เข้าสู่ระบบ
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div id="app-container" style="display: none;">
+        <!-- Header -->
+        <header>
+            <div class="container header-wrapper">
+                <div class="brand">
+                    <div class="brand-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    </div>
+                    <span>ระบบคำนวณค่าไฟรายเดือน</span>
+                </div>
+                <div class="header-actions">
+                    <button class="theme-switch" id="theme-toggle" onclick="toggleTheme()" title="สลับโหมด มืด/สว่าง">
+                        <!-- Sun Icon -->
+                        <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="4.22" x2="19.78" y2="5.64"/></svg>
+                    </button>
+                    <div class="user-profile">
+                        <span id="user-display-name">ผู้ดูแลระบบ</span>
+                        <div class="user-avatar">A</div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="handleLogout()" title="ออกจากระบบ">
+                        <span>ออก</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="container">
+            <div class="dashboard-grid">
+                
+                <!-- Sidebar (Month & Year selectors) -->
+                <aside class="sidebar">
+                    <div class="sidebar-card">
+                        <div class="sidebar-title">
+                            <span>เลือกดูข้อมูลรอบบิล</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="history-month-select">เลือกเดือน</label>
+                            <select id="history-month-select" class="input-control" onchange="handleHistorySelectChange()">
+                                <option value="1">มกราคม</option>
+                                <option value="2">กุมภาพันธ์</option>
+                                <option value="3">มีนาคม</option>
+                                <option value="4">เมษายน</option>
+                                <option value="5">พฤษภาคม</option>
+                                <option value="6">มิถุนายน</option>
+                                <option value="7">กรกฎาคม</option>
+                                <option value="8">สิงหาคม</option>
+                                <option value="9">กันยายน</option>
+                                <option value="10">ตุลาคม</option>
+                                <option value="11">พฤศจิกายน</option>
+                                <option value="12">ธันวาคม</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="history-year-select">เลือกปี พ.ศ.</label>
+                            <select id="history-year-select" class="input-control" onchange="handleHistorySelectChange()">
+                                <!-- Populated dynamically from 2568 onwards -->
+                            </select>
+                        </div>
+                        
+                        <div id="sidebar-action-container" style="margin-top: 16px;">
+                            <!-- Active dynamic button (Edit / Add) -->
+                        </div>
+                    </div>
+
+                    <!-- DB Stats Sidebar Info -->
+                    <div class="sidebar-card" style="font-size: 13px; color: var(--text-secondary);">
+                        <div class="sidebar-title" style="margin-bottom: 8px;">
+                            <span>คู่มือการใช้งานระบบ</span>
+                        </div>
+                        <ul style="padding-left: 16px; display: flex; flex-direction: column; gap: 8px;">
+                            <li>ช่องรวมค่าไฟก่อน VAT และ Vat 7% จะถูกคำนวณให้อัตโนมัติ</li>
+                            <li>เลขมิเตอร์ย้อนหลังจะดึงจากเดือนก่อนหน้าและล็อกไว้</li>
+                            <li>หากเป็นเดือนแรกสุด ระบบจะอนุญาตให้ป้อนเลขเริ่มต้นได้</li>
+                            <li>กราฟด้านล่างจะเปรียบเทียบค่าไฟรายเดือนกับปีก่อนหน้า</li>
+                        </ul>
+                    </div>
+                </aside>
+
+                <!-- Details Section -->
+                <section class="details-section">
+                    
+                    <!-- Stats Section (Real-time Overview Cards) -->
+                    <div class="stats-container" id="dashboard-stats" style="display: none;">
+                        <div class="stat-card">
+                            <div class="stat-icon total">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">บิลไฟหลักทั้งหมด</span>
+                                <span class="stat-value" id="stat-total-bill">0.00 ฿</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon r1">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">ค่าไฟ ห้อง 1 (เจ้าของ)</span>
+                                <span class="stat-value" id="stat-r1-bill">0.00 ฿</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon r2">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">ค่าไฟ ห้อง 2 (ผู้เช่า)</span>
+                                <span class="stat-value" id="stat-r2-bill">0.00 ฿</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon pump">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">ค่าไฟ ปั้มน้ำ</span>
+                                <span class="stat-value" id="stat-pump-bill">0.00 ฿</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Welcome / Empty Screen -->
+                    <div id="welcome-card" class="detail-card fade-in" style="text-align: center; padding: 60px 20px;">
+                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" style="margin-bottom: 24px; animation: pulse 2s infinite;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <h2 id="welcome-title">ไม่มีข้อมูลสำหรับเดือนนี้</h2>
+                        <p id="welcome-desc" style="color: var(--text-secondary); max-width: 500px; margin: 12px auto 24px;">กรุณาคลิกปุ่มบันทึกข้อมูลด้านล่างเพื่อเริ่มกรอกค่าไฟฟ้าและค่ามิเตอร์สำหรับรอบบิลนี้</p>
+                        <button class="btn btn-primary" id="welcome-add-btn" onclick="openAddModal()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            บันทึกข้อมูลประจำเดือนนี้
+                        </button>
+                    </div>
+
+                    <!-- Main Grid Overview (Calculated Table) -->
+                    <div id="overview-card" class="detail-card fade-in" style="display: none;">
+                        <div class="card-header-actions">
+                            <div>
+                                <h2 class="card-title" id="overview-title">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+                                    ตารางภาพรวมประเดือน
+                                </h2>
+                                <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;" id="overview-timestamp">บันทึกข้อมูลเมื่อ: -</p>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-secondary" onclick="editCurrentMonth()" title="แก้ไขข้อมูล">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                    <span>แก้ไข</span>
+                                </button>
+                                <button class="btn btn-danger" onclick="deleteCurrentMonth()" title="ลบข้อมูล">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    <span>ลบ</span>
+                                </button>
+                                <button class="btn btn-success" onclick="window.print()" title="พิมพ์ใบแจ้งหนี้ / บิลสำหรับส่งให้ผู้เช่า">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                    <span>พิมพ์ตารางและกราฟ</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Calculations Table Grid -->
+                        <div class="table-responsive">
+                            <table class="sheet-table" id="calculation-sheet-table">
+                                <thead>
+                                    <tr>
+                                        <th id="th-month-label">เดือน พฤษภาคม 69</th>
+                                        <th>รวมบิลค่าไฟ</th>
+                                        <th>ห้อง 1 (เจ้าของ)</th>
+                                        <th>ห้อง 2 (ผู้เช่า)</th>
+                                        <th>ปั้มน้ำ</th>
+                                        <th class="cell-center">หน่วย</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>หน่วยที่ใช้</strong></td>
+                                        <td id="cell-total-units" class="cell-right">-</td>
+                                        <td id="cell-r1-units" class="cell-right">-</td>
+                                        <td id="cell-r2-units" class="cell-right">-</td>
+                                        <td id="cell-pump-units" class="cell-right">-</td>
+                                        <td class="cell-center">Unit</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ค่าพลังงานไฟฟ้า</strong></td>
+                                        <td id="cell-total-energy" class="cell-right">-</td>
+                                        <td id="cell-r1-energy" class="cell-right">-</td>
+                                        <td id="cell-r2-energy" class="cell-right">-</td>
+                                        <td id="cell-pump-energy" class="cell-right">-</td>
+                                        <td class="cell-center">บาท</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ค่าบริการรายเดือน</strong></td>
+                                        <td id="cell-total-service" class="cell-right">-</td>
+                                        <td id="cell-r1-service" class="cell-right">-</td>
+                                        <td id="cell-r2-service" class="cell-right">-</td>
+                                        <td id="cell-pump-service" class="cell-right">-</td>
+                                        <td class="cell-center">บาท</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ค่า ft</strong></td>
+                                        <td id="cell-total-ft" class="cell-right">-</td>
+                                        <td id="cell-r1-ft" class="cell-right">-</td>
+                                        <td id="cell-r2-ft" class="cell-right">-</td>
+                                        <td id="cell-pump-ft" class="cell-right">-</td>
+                                        <td class="cell-center">บาท</td>
+                                    </tr>
+                                    <tr style="background-color: var(--bg-tertiary);">
+                                        <td><strong>รวมค่าไฟ</strong></td>
+                                        <td id="cell-total-pre-vat" class="cell-right">-</td>
+                                        <td id="cell-r1-pre-vat" class="cell-right">-</td>
+                                        <td id="cell-r2-pre-vat" class="cell-right">-</td>
+                                        <td id="cell-pump-pre-vat" class="cell-right">-</td>
+                                        <td class="cell-center">บาท</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Vat 7%</strong></td>
+                                        <td id="cell-total-vat" class="cell-right">-</td>
+                                        <td id="cell-r1-vat" class="cell-right">-</td>
+                                        <td id="cell-r2-vat" class="cell-right">-</td>
+                                        <td id="cell-pump-vat" class="cell-right">-</td>
+                                        <td class="cell-center">บาท</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ส่วนลด ft</strong></td>
+                                        <td id="cell-total-discount" class="cell-right">-</td>
+                                        <td id="cell-r1-discount" class="cell-right">-</td>
+                                        <td id="cell-r2-discount" class="cell-right">-</td>
+                                        <td id="cell-pump-discount" class="cell-right">-</td>
+                                        <td class="cell-center">บาท</td>
+                                    </tr>
+                                    <tr class="total-row">
+                                        <td><strong>รวมทั้งหมด</strong></td>
+                                        <td id="cell-total-grand" class="cell-right">-</td>
+                                        <td id="cell-r1-grand" class="cell-right">-</td>
+                                        <td id="cell-r2-grand" class="cell-right">-</td>
+                                        <td id="cell-pump-grand" class="cell-right">-</td>
+                                        <td class="cell-center">บาท</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div style="margin-top: 16px; background-color: var(--bg-tertiary); padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 13px;">
+                            <strong>หมายเหตุการคำนวณหลัก:</strong> ค่าไฟหน่วยละ = <span id="cell-rate-per-unit" style="font-weight: 700; color: var(--primary);">-</span> บาท (คำนวณจาก: ค่าพลังงานไฟฟ้าหลัก / ยูนิตของบิลใหญ่)
+                        </div>
+                    </div>
+
+                    <!-- Comparison Line Chart Panel -->
+                    <div id="chart-card" class="detail-card fade-in" style="display: none;">
+                        <div class="card-header-actions" style="margin-bottom: 24px;">
+                            <div>
+                                <h2 class="card-title">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                                    กราฟเปรียบเทียบค่าไฟฟ้า (ปีก่อนหน้า vs ปีปัจจุบัน)
+                                </h2>
+                                <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;" id="chart-description-text">แสดงผลเปรียบเทียบค่าไฟของ ห้อง 1, ห้อง 2, ปั้มน้ำ และยอดรวมบิลหลัก</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Line Chart Canvas -->
+                        <div style="position: relative; height: 380px; width: 100%;">
+                            <canvas id="electricity-trend-chart"></canvas>
+                        </div>
+                    </div>
+
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- ADD/EDIT DATA MODAL -->
+    <div class="modal-overlay" id="add-data-modal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-form-title">บันทึกข้อมูลค่าไฟฟ้าใหม่</h3>
+                <button class="modal-close" onclick="closeAddModal()">&times;</button>
+            </div>
+            
+            <form id="data-entry-form" onsubmit="saveDataEntry(event)">
+                <input type="hidden" id="entry-id-field">
+                
+                <div class="modal-body">
+                    <div class="form-grid">
+                        
+                        <!-- Left Panel: Bill Information -->
+                        <div class="form-section">
+                            <h4 class="form-section-title">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                1. ข้อมูลบิลการไฟฟ้าหลัก
+                            </h4>
+                            
+                            <div class="form-row-2col">
+                                <div class="form-group">
+                                    <label for="bill-month">เดือนประจำบิล</label>
+                                    <select id="bill-month" class="input-control" required>
+                                        <option value="1">มกราคม</option>
+                                        <option value="2">กุมภาพันธ์</option>
+                                        <option value="3">มีนาคม</option>
+                                        <option value="4">เมษายน</option>
+                                        <option value="5">พฤษภาคม</option>
+                                        <option value="6">มิถุนายน</option>
+                                        <option value="7">กรกฎาคม</option>
+                                        <option value="8">สิงหาคม</option>
+                                        <option value="9">กันยายน</option>
+                                        <option value="10">ตุลาคม</option>
+                                        <option value="11">พฤศจิกายน</option>
+                                        <option value="12">ธันวาคม</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="bill-year">ปี พ.ศ.</label>
+                                    <select id="bill-year" class="input-control" required>
+                                        <!-- Populated dynamically -->
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="bill-units-input">หน่วยที่ใช้ทั้งหมด (ยูนิตในบิลหลัก)</label>
+                                <input type="number" step="any" id="bill-units-input" class="input-control" required placeholder="0.00" oninput="triggerLiveCalc()">
+                            </div>
+                            <div class="form-group">
+                                <label for="bill-energy-input">ค่าพลังงานไฟฟ้า (บาท)</label>
+                                <input type="number" step="any" id="bill-energy-input" class="input-control" required placeholder="0.00" oninput="triggerLiveCalc()">
+                            </div>
+                            
+                            <div class="form-row-2col">
+                                <div class="form-group">
+                                    <label for="bill-service-input">ค่าบริการรายเดือน</label>
+                                    <input type="number" step="any" id="bill-service-input" class="input-control" required placeholder="38.22" oninput="triggerLiveCalc()">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bill-ft-input">ค่า ft (บาท)</label>
+                                    <input type="number" step="any" id="bill-ft-input" class="input-control" required placeholder="0.00" oninput="triggerLiveCalc()">
+                                </div>
+                            </div>
+                            
+                            <!-- LOCKED AUTOMATIC CALCULATIONS -->
+                            <div class="form-group">
+                                <label for="bill-pre-vat-input" style="color: var(--primary); font-weight: 600;">รวมค่าไฟก่อนภาษี (บาท) - [คำนวณ Auto]</label>
+                                <input type="number" step="any" id="bill-pre-vat-input" class="input-control readonly-input" readonly placeholder="คำนวณอัตโนมัติ" tabindex="-1">
+                            </div>
+                            
+                            <div class="form-row-2col">
+                                <div class="form-group">
+                                    <label for="bill-vat-input" style="color: var(--primary); font-weight: 600;">Vat 7% (บาท) - [คำนวณ Auto]</label>
+                                    <input type="number" step="any" id="bill-vat-input" class="input-control readonly-input" readonly placeholder="คำนวณอัตโนมัติ" tabindex="-1">
+                                </div>
+                                <div class="form-group">
+                                    <label for="bill-discount-input">ค่าส่วนลด (บาท)</label>
+                                    <input type="number" step="any" id="bill-discount-input" class="input-control" required placeholder="0.00" oninput="triggerLiveCalc()">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Right Panel: Meter Readings -->
+                        <div class="form-section">
+                            <h4 class="form-section-title">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                2. เลขมิเตอร์ย่อย (ห้อง 2 และปั้มน้ำ)
+                            </h4>
+                            
+                            <div class="form-group">
+                                <label for="date-stamp-label">วันที่เพิ่มข้อมูล (Auto Stamp)</label>
+                                <input type="text" id="date-stamp-label" class="input-control" readonly style="background-color: var(--bg-tertiary);">
+                            </div>
+                            
+                            <div style="margin-top: 16px; border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+                                <h5 style="font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--success);">ห้อง 2 (ผู้เช่า)</h5>
+                                <div class="form-row-2col">
+                                    <div class="form-group">
+                                        <label for="r2-prev-meter-input" id="r2-prev-label">มิเตอร์ห้อง 2 เดือนก่อน</label>
+                                        <input type="number" step="any" id="r2-prev-meter-input" class="input-control" required placeholder="0.00" oninput="triggerLiveCalc()">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="r2-curr-meter-input">มิเตอร์ห้อง 2 เดือนนี้</label>
+                                        <input type="number" step="any" id="r2-curr-meter-input" class="input-control" required placeholder="0.00" oninput="triggerLiveCalc()">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div style="border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+                                <h5 style="font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--danger);">ปั้มน้ำ</h5>
+                                <div class="form-row-2col">
+                                    <div class="form-group">
+                                        <label for="pump-prev-meter-input" id="pump-prev-label">มิเตอร์ปั้มน้ำเดือนก่อน</label>
+                                        <input type="number" step="any" id="pump-prev-meter-input" class="input-control" required placeholder="0.00" oninput="triggerLiveCalc()">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pump-curr-meter-input">มิเตอร์ปั้มน้ำเดือนนี้</label>
+                                        <input type="number" step="any" id="pump-curr-meter-input" class="input-control" required placeholder="0.00" oninput="triggerLiveCalc()">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Live Calculation Panel Preview inside Modal -->
+                            <div style="background-color: var(--primary-glow); border: 1px solid var(--primary); padding: 16px; border-radius: var(--radius-sm); font-size: 13px;">
+                                <h5 style="font-weight: 700; margin-bottom: 8px; color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                    พรีวิวคำนวณเบื้องต้น
+                                </h5>
+                                <div style="display: flex; flex-direction: column; gap: 6px;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span>ค่าไฟต่อหน่วย (พลังงาน/หน่วยรวม):</span>
+                                        <span id="live-rate-val" style="font-weight: 600;">0.00 บาท/หน่วย</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span>ยูนิต ห้อง 2 | ยูนิต ปั้มน้ำ:</span>
+                                        <span id="live-units-val" style="font-weight: 600;">0.00 | 0.00 หน่วย</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-weight: 700; border-top: 1px dashed var(--border-color); padding-top: 6px;">
+                                        <span>บิลรวมสุทธิ (ปัดเศษ):</span>
+                                        <span id="live-grand-val">0.00 บาท</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeAddModal()">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        บันทึกข้อมูล
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="app.js"></script>
+</body>
+</html>
