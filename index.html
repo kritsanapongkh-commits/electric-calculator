@@ -4,15 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบคำนวณค่าไฟรายเดือน - Rental Electricity App</title>
-
     <link rel="stylesheet" href="styles.css">
-
-    <!-- เพิ่ม 2 บรรทัดนี้ -->
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1976d2">
-
+    
     <!-- Chart.js for premium interactive charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Firebase SDK Compat (allows direct browser usage on GitHub Pages) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
 <body data-theme="light">
 
@@ -71,6 +70,11 @@
                 </div>
             </div>
         </header>
+
+        <!-- Dynamic DB Status Warning Banner -->
+        <div id="db-warning-banner">
+            ⚠️ ระบบกำลังเก็บข้อมูลไว้เฉพาะบนเว็บเบราว์เซอร์ส่วนตัว (LocalStorage) - ข้อมูลจะไม่ซิงค์ข้ามเครื่องมือถือ กรุณาเปิดไฟล์ app.js เพื่อตั้งค่า Firebase
+        </div>
 
         <!-- Main Workspace -->
         <main class="container">
