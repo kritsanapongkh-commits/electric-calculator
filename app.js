@@ -12,9 +12,7 @@ const firebaseConfig = {
     appId: "1:718134464187:web:2ead6afa578692223da39e"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+
 
 // Global state
 let state = {
@@ -547,6 +545,12 @@ function renderOverview() {
 function renderTrendChart(selectedYear) {
     const canvas = document.getElementById('electricity-trend-chart');
     if (!canvas) return;
+    
+    if (typeof Chart === 'undefined') {
+        console.warn("Chart.js is not loaded.");
+        canvas.parentNode.innerHTML = '<div class="empty-state" style="padding:100px 0;">⚠️ ไม่สามารถโหลดกราฟได้เนื่องจากไม่ได้เชื่อมต่ออินเทอร์เน็ต (หรือโหลด Chart.js ล้มเหลว)</div>';
+        return;
+    }
     
     const prevYear = selectedYear - 1;
     document.getElementById('chart-description-text').textContent = `แสดงผลเปรียบเทียบข้อมูลรายเดือนของปี พ.ศ. ${prevYear} (เส้นประ) และ พ.ศ. ${selectedYear} (เส้นทึบ)`;
