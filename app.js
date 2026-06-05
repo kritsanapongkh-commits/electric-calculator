@@ -1,6 +1,30 @@
 // ==========================================
-// RENTAL ELECTRICITY APP - CORE JS ENGINE (V2)
+// RENTAL ELECTRICITY APP - CORE JS ENGINE (V3)
 // ==========================================
+
+// TODO: Replace this placeholder with your project's Firebase configuration keys from the Firebase Console.
+// If you leave these values as placeholders, the app will run in "Offline mode" using LocalStorage.
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAN5tl2iwidzQeAMJ1l2-hr6nxEG7pguKM",
+  authDomain: "rental-electricity.firebaseapp.com",
+  projectId: "rental-electricity",
+  storageBucket: "rental-electricity.firebasestorage.app",
+  messagingSenderId: "718134464187",
+  appId: "1:718134464187:web:2ead6afa578692223da39e",
+  measurementId: "G-XRPZBZ1PPC"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
 // Global state
 let state = {
@@ -10,10 +34,11 @@ let state = {
     isLoggedIn: false
 };
 
-// Global chart instance helper to prevent duplication bugs
+// Database instance
+let db = null;
 let trendChartInstance = null;
 
-// Thai month names array
+// Thai month names
 const THAI_MONTHS = [
     "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
     "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
@@ -39,7 +64,6 @@ function formatNum(value) {
 
 // 1. Initial Load & Theme Settings
 window.addEventListener('DOMContentLoaded', () => {
-    // Populate year selections (starting from 2568)
     populateDropdowns();
     
     // Load local storage theme
@@ -50,8 +74,8 @@ window.addEventListener('DOMContentLoaded', () => {
         updateThemeToggleIcon();
     }
     
-    // Load local storage records or seed default data starting from 2568
-    loadRecords();
+    // Initialize Database (Firebase Firestore or LocalStorage fallback)
+    initDatabaseConnection();
 
     // Check login state
     const loggedInSession = localStorage.getItem('rental_elec_session');
@@ -63,14 +87,11 @@ window.addEventListener('DOMContentLoaded', () => {
         showLogin();
     }
     
-    // Set auto date on modal when loaded
     updateDateStamp();
-    
-    // Add event listeners to automate some additions on form inputs
     setupBillFormListeners();
 });
 
-// Populate History selectors (start 2568) and Modal year selector
+// Setup selectors
 function populateDropdowns() {
     const historyYearSelect = document.getElementById('history-year-select');
     const modalYearSelect = document.getElementById('bill-year');
@@ -84,14 +105,12 @@ function populateDropdowns() {
     modalYearSelect.innerHTML = '';
     
     for (let yr = 2568; yr <= endYear; yr++) {
-        // Sidebar Year select options
         const opt1 = document.createElement('option');
         opt1.value = yr;
         opt1.textContent = yr;
         if (yr === currentYearBE) opt1.selected = true;
         historyYearSelect.appendChild(opt1);
         
-        // Modal Year select options
         const opt2 = document.createElement('option');
         opt2.value = yr;
         opt2.textContent = yr;
@@ -99,24 +118,202 @@ function populateDropdowns() {
         modalYearSelect.appendChild(opt2);
     }
     
-    // Set history month default select to current month
     const currentMonth = new Date().getMonth() + 1;
     document.getElementById('history-month-select').value = currentMonth;
 }
 
-// Manage Theme
+// 2. Database Connection Management (Firebase / LocalStorage)
+function initDatabaseConnection() {
+    // Check if Firebase script is loaded and configuration has been replaced by user
+    const hasConfig = firebaseConfig.projectId && firebaseConfig.projectId !== "YOUR_PROJECT_ID";
+    
+    if (typeof firebase !== 'undefined' && hasConfig) {
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            console.log("Firebase Connected successfully!");
+            
+            // Set up real-time listener (syncs database instantly across all phone screens)
+            db.collection("records").onSnapshot((snapshot) => {
+                state.records = [];
+                snapshot.forEach(doc => {
+                    state.records.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                });
+                
+                // Trigger UI update if user is logged in
+                if (state.isLoggedIn) {
+                    // Refresh view
+                    handleHistorySelectChange();
+                }
+            }, (error) => {
+                console.error("Firestore sync error: ", error);
+                loadLocalStorageFallback();
+            });
+            
+            // Hide warning banner (Connected online)
+            document.getElementById('db-warning-banner').style.display = 'none';
+        } catch (e) {
+            console.error("Firebase init failed: ", e);
+            loadLocalStorageFallback();
+        }
+    } else {
+        loadLocalStorageFallback();
+    }
+}
+
+// Fallback to local storage if Firebase credentials aren't set
+function loadLocalStorageFallback() {
+    db = null;
+    console.log("Database initialized in LocalStorage mode (Offline).");
+    
+    // Load local storage records or set mock data if empty
+    const saved = localStorage.getItem('rental_elec_records');
+    if (saved) {
+        state.records = JSON.parse(saved);
+    } else {
+        seedMockData();
+    }
+    
+    // Show warning banner
+    document.getElementById('db-warning-banner').style.display = 'block';
+}
+
+function seedMockData() {
+    state.records = [];
+    let meterR2 = 500;
+    let meterPump = 200;
+    
+    // Seed 12 Months for 2568
+    for (let m = 1; m <= 12; m++) {
+        const r2Usage = 150 + (m % 3) * 12;
+        const pumpUsage = 30 + (m % 2) * 6;
+        
+        const r2Prev = meterR2;
+        meterR2 += r2Usage;
+        
+        const pumpPrev = meterPump;
+        meterPump += pumpUsage;
+        
+        const totalUnits = r2Usage + pumpUsage + 500 + (m * 8);
+        const rate = 4.20;
+        const energy = totalUnits * rate;
+        const service = 38.22;
+        const ft = totalUnits * 0.40;
+        const preVat = energy + service + ft;
+        const vat = preVat * 0.07;
+        const discount = 20.00;
+        
+        state.records.push({
+            id: `seed_2568_${m}`,
+            month: m,
+            year: 2568,
+            dateAdded: `2025-${String(m).padStart(2, '0')}-28T09:00:00.000Z`,
+            bill_units: totalUnits,
+            bill_energy: energy,
+            bill_service: service,
+            bill_ft: ft,
+            bill_pre_vat: preVat,
+            bill_vat: vat,
+            bill_discount: discount,
+            meter_r2_prev: r2Prev,
+            meter_r2_curr: meterR2,
+            meter_pump_prev: pumpPrev,
+            meter_pump_curr: meterPump
+        });
+    }
+    
+    // Seed Jan-May 2569
+    for (let m = 1; m <= 5; m++) {
+        const r2Usage = 160 + (m % 4) * 15;
+        const pumpUsage = 35 + (m % 2) * 5;
+        
+        const r2Prev = meterR2;
+        meterR2 += r2Usage;
+        
+        const pumpPrev = meterPump;
+        meterPump += pumpUsage;
+        
+        const totalUnits = r2Usage + pumpUsage + 550 + (m * 10);
+        const rate = 4.45;
+        const energy = totalUnits * rate;
+        const service = 38.22;
+        const ft = totalUnits * 0.45;
+        const preVat = energy + service + ft;
+        const vat = preVat * 0.07;
+        const discount = 30.00;
+        
+        state.records.push({
+            id: `seed_2569_${m}`,
+            month: m,
+            year: 2569,
+            dateAdded: `2026-${String(m).padStart(2, '0')}-28T09:00:00.000Z`,
+            bill_units: totalUnits,
+            bill_energy: energy,
+            bill_service: service,
+            bill_ft: ft,
+            bill_pre_vat: preVat,
+            bill_vat: vat,
+            bill_discount: discount,
+            meter_r2_prev: r2Prev,
+            meter_r2_curr: meterR2,
+            meter_pump_prev: pumpPrev,
+            meter_pump_curr: meterPump
+        });
+    }
+    localStorage.setItem('rental_elec_records', JSON.stringify(state.records));
+}
+
+// 3. Database CRUD Operations Helper
+function saveRecord(record) {
+    if (db) {
+        // Save online to Firebase
+        return db.collection("records").doc(record.id).set(record)
+            .catch(error => {
+                alert("เกิดข้อผิดพลาดในการเซฟข้อมูลไปที่คลาวด์: " + error.message);
+                throw error;
+            });
+    } else {
+        // Save offline in LocalStorage
+        const index = state.records.findIndex(r => r.id === record.id);
+        if (index !== -1) {
+            state.records[index] = record;
+        } else {
+            state.records.push(record);
+        }
+        localStorage.setItem('rental_elec_records', JSON.stringify(state.records));
+        return Promise.resolve();
+    }
+}
+
+function deleteRecord(id) {
+    if (db) {
+        // Delete online from Firebase
+        return db.collection("records").doc(id).delete()
+            .catch(error => {
+                alert("เกิดข้อผิดพลาดในการลบข้อมูลบนคลาวด์: " + error.message);
+                throw error;
+            });
+    } else {
+        // Delete offline from LocalStorage
+        state.records = state.records.filter(r => r.id !== id);
+        localStorage.setItem('rental_elec_records', JSON.stringify(state.records));
+        return Promise.resolve();
+    }
+}
+
+// Theme Controls
 function toggleTheme() {
     state.theme = state.theme === 'light' ? 'dark' : 'light';
     document.body.setAttribute('data-theme', state.theme);
     localStorage.setItem('rental_elec_theme', state.theme);
     updateThemeToggleIcon();
     
-    // Re-render chart to adjust grid line colors for dark mode
-    if (state.currentRecordId) {
-        const rec = state.records.find(r => r.id === state.currentRecordId);
-        if (rec) {
-            renderTrendChart(rec.year);
-        }
+    if (state.currentRecordId || state.records.length > 0) {
+        const currentYear = document.getElementById('history-year-select').value;
+        renderTrendChart(Number(currentYear));
     }
 }
 
@@ -126,18 +323,16 @@ function updateThemeToggleIcon() {
     
     if (state.theme === 'dark') {
         btn.innerHTML = `
-            <!-- Moon Icon -->
             <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
         `;
     } else {
         btn.innerHTML = `
-            <!-- Sun Icon -->
             <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="4.22" x2="19.78" y2="5.64"/></svg>
         `;
     }
 }
 
-// 2. Authentication Logic
+// 4. Session Handlers
 function handleLogin(event) {
     event.preventDefault();
     const user = document.getElementById('username').value.trim();
@@ -170,109 +365,10 @@ function showApp() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-container').style.display = 'block';
     
-    // Auto select month/year based on dropdown inputs
     handleHistorySelectChange();
 }
 
-// 3. Database & Seeding (Seeding data starting Jan 2568 to compare)
-function loadRecords() {
-    const saved = localStorage.getItem('rental_elec_records');
-    if (saved) {
-        state.records = JSON.parse(saved);
-    } else {
-        // Seed database starting from Jan 2568
-        state.records = [];
-        
-        let meterR2 = 500;
-        let meterPump = 200;
-        
-        // Seed 12 Months for 2568
-        for (let m = 1; m <= 12; m++) {
-            const r2Usage = 150 + (m % 3) * 12;
-            const pumpUsage = 30 + (m % 2) * 6;
-            
-            const r2Prev = meterR2;
-            meterR2 += r2Usage;
-            
-            const pumpPrev = meterPump;
-            meterPump += pumpUsage;
-            
-            const totalUnits = r2Usage + pumpUsage + 500 + (m * 8); // Room 1 gets ~500 units
-            const rate = 4.20;
-            const energy = totalUnits * rate;
-            const service = 38.22;
-            const ft = totalUnits * 0.40;
-            const preVat = energy + service + ft;
-            const vat = preVat * 0.07;
-            const discount = 20.00;
-            
-            state.records.push({
-                id: `1704067200000_${m}`, // mock timestamps
-                month: m,
-                year: 2568,
-                dateAdded: `2025-${String(m).padStart(2, '0')}-28T09:00:00.000Z`,
-                bill_units: totalUnits,
-                bill_energy: energy,
-                bill_service: service,
-                bill_ft: ft,
-                bill_pre_vat: preVat,
-                bill_vat: vat,
-                bill_discount: discount,
-                meter_r2_prev: r2Prev,
-                meter_r2_curr: meterR2,
-                meter_pump_prev: pumpPrev,
-                meter_pump_curr: meterPump
-            });
-        }
-        
-        // Seed Jan-May 2569 (Current year)
-        for (let m = 1; m <= 5; m++) {
-            const r2Usage = 160 + (m % 4) * 15;
-            const pumpUsage = 35 + (m % 2) * 5;
-            
-            const r2Prev = meterR2;
-            meterR2 += r2Usage;
-            
-            const pumpPrev = meterPump;
-            meterPump += pumpUsage;
-            
-            const totalUnits = r2Usage + pumpUsage + 550 + (m * 10);
-            const rate = 4.45; // rate increases slightly in 2569
-            const energy = totalUnits * rate;
-            const service = 38.22;
-            const ft = totalUnits * 0.45;
-            const preVat = energy + service + ft;
-            const vat = preVat * 0.07;
-            const discount = 30.00;
-            
-            state.records.push({
-                id: `1735689600000_${m}`,
-                month: m,
-                year: 2569,
-                dateAdded: `2026-${String(m).padStart(2, '0')}-28T09:00:00.000Z`,
-                bill_units: totalUnits,
-                bill_energy: energy,
-                bill_service: service,
-                bill_ft: ft,
-                bill_pre_vat: preVat,
-                bill_vat: vat,
-                bill_discount: discount,
-                meter_r2_prev: r2Prev,
-                meter_r2_curr: meterR2,
-                meter_pump_prev: pumpPrev,
-                meter_pump_curr: meterPump
-            });
-        }
-        
-        saveRecords();
-    }
-}
-
-function saveRecords() {
-    localStorage.setItem('rental_elec_records', JSON.stringify(state.records));
-}
-
-// 4. Mathematical Calculations Core
+// 5. Calculations Engine
 function calculateMonthData(rec) {
     const billUnits = Number(rec.bill_units || 0);
     const billEnergy = Number(rec.bill_energy || 0);
@@ -282,10 +378,8 @@ function calculateMonthData(rec) {
     const billVat = Number(rec.bill_vat || 0);
     const billDiscount = Number(rec.bill_discount || 0);
     
-    // Average Rate per unit
     const ratePerUnit = billUnits > 0 ? (billEnergy / billUnits) : 0;
     
-    // Sub-meters
     const r2Prev = Number(rec.meter_r2_prev || 0);
     const r2Curr = Number(rec.meter_r2_curr || 0);
     const pumpPrev = Number(rec.meter_pump_prev || 0);
@@ -313,7 +407,7 @@ function calculateMonthData(rec) {
     const pumpDiscount = billDiscount / 3;
     const pumpGrand = pumpPreVat + pumpVat - pumpDiscount;
     
-    // Room 1 (N - Remainder)
+    // Room 1 (N)
     const r1Energy = billEnergy - r2Energy - pumpEnergy;
     const r1Service = billService - r2Service - pumpService;
     const r1Ft = billFt - r2Ft - pumpFt;
@@ -338,7 +432,7 @@ function calculateMonthData(rec) {
     };
 }
 
-// 5. Navigation & View Updates
+// 6. Navigation Dropdowns
 function handleHistorySelectChange() {
     const month = Number(document.getElementById('history-month-select').value);
     const year = Number(document.getElementById('history-year-select').value);
@@ -347,7 +441,6 @@ function handleHistorySelectChange() {
     const sidebarAction = document.getElementById('sidebar-action-container');
     
     if (rec) {
-        // Record exists, load details
         state.currentRecordId = rec.id;
         renderOverview();
         
@@ -358,7 +451,6 @@ function handleHistorySelectChange() {
             </button>
         `;
     } else {
-        // No record exists, show welcome empty screen
         state.currentRecordId = null;
         showWelcomeEmptyScreen(month, year);
         
@@ -374,7 +466,7 @@ function handleHistorySelectChange() {
 function showWelcomeEmptyScreen(month, year) {
     document.getElementById('welcome-card').style.display = 'block';
     document.getElementById('overview-card').style.display = 'none';
-    document.getElementById('chart-card').style.display = 'block'; // Keep chart visible to show previous records!
+    document.getElementById('chart-card').style.display = 'block';
     document.getElementById('dashboard-stats').style.display = 'none';
     
     document.getElementById('welcome-title').textContent = `ไม่มีข้อมูลสำหรับ เดือน ${THAI_MONTHS[month - 1]} พ.ศ. ${year}`;
@@ -384,7 +476,6 @@ function showWelcomeEmptyScreen(month, year) {
         บันทึกข้อมูลของเดือน ${THAI_MONTHS[month - 1]} ${year}
     `;
     
-    // Draw the trend chart for this selected year anyway (so they see the comparison curve)
     renderTrendChart(year);
 }
 
@@ -399,12 +490,10 @@ function renderOverview() {
     
     const calc = calculateMonthData(rec);
     
-    // Date added stamp
     const dateOpts = { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' };
     const dateStr = new Date(rec.dateAdded).toLocaleDateString('th-TH', dateOpts) + " น.";
     document.getElementById('overview-timestamp').textContent = `บันทึกข้อมูลเมื่อ: ${dateStr}`;
     
-    // Titles
     const monthLabel = `เดือน ${THAI_MONTHS[rec.month - 1]} ${rec.year}`;
     document.getElementById('th-month-label').textContent = monthLabel;
     document.getElementById('overview-title').innerHTML = `
@@ -412,69 +501,59 @@ function renderOverview() {
         ตารางภาพรวมประจำ${monthLabel}
     `;
     
-    // Stats cards
+    // Stats
     document.getElementById('stat-total-bill').textContent = formatCurrency(calc.grand.total);
     document.getElementById('stat-r1-bill').textContent = formatCurrency(calc.grand.r1);
     document.getElementById('stat-r2-bill').textContent = formatCurrency(calc.grand.r2);
     document.getElementById('stat-pump-bill').textContent = formatCurrency(calc.grand.pump);
     
-    // Sheet Table rows
-    // Row 1: Units
+    // Table Rows
     document.getElementById('cell-total-units').textContent = formatNum(calc.units.total);
     document.getElementById('cell-r1-units').textContent = formatNum(calc.units.r1);
     document.getElementById('cell-r2-units').textContent = formatNum(calc.units.r2);
     document.getElementById('cell-pump-units').textContent = formatNum(calc.units.pump);
     
-    // Row 2: Energy
     document.getElementById('cell-total-energy').textContent = formatNum(calc.energy.total);
     document.getElementById('cell-r1-energy').textContent = formatNum(calc.energy.r1);
     document.getElementById('cell-r2-energy').textContent = formatNum(calc.energy.r2);
     document.getElementById('cell-pump-energy').textContent = formatNum(calc.energy.pump);
     
-    // Row 3: Service
     document.getElementById('cell-total-service').textContent = formatNum(calc.service.total);
     document.getElementById('cell-r1-service').textContent = formatNum(calc.service.r1);
     document.getElementById('cell-r2-service').textContent = formatNum(calc.service.r2);
     document.getElementById('cell-pump-service').textContent = formatNum(calc.service.pump);
     
-    // Row 4: ft
     document.getElementById('cell-total-ft').textContent = formatNum(calc.ft.total);
     document.getElementById('cell-r1-ft').textContent = formatNum(calc.ft.r1);
     document.getElementById('cell-r2-ft').textContent = formatNum(calc.ft.r2);
     document.getElementById('cell-pump-ft').textContent = formatNum(calc.ft.pump);
     
-    // Row 5: preVat
     document.getElementById('cell-total-pre-vat').textContent = formatNum(calc.preVat.total);
     document.getElementById('cell-r1-pre-vat').textContent = formatNum(calc.preVat.r1);
     document.getElementById('cell-r2-pre-vat').textContent = formatNum(calc.preVat.r2);
     document.getElementById('cell-pump-pre-vat').textContent = formatNum(calc.preVat.pump);
     
-    // Row 6: VAT
     document.getElementById('cell-total-vat').textContent = formatNum(calc.vat.total);
     document.getElementById('cell-r1-vat').textContent = formatNum(calc.vat.r1);
     document.getElementById('cell-r2-vat').textContent = formatNum(calc.vat.r2);
     document.getElementById('cell-pump-vat').textContent = formatNum(calc.vat.pump);
     
-    // Row 7: Discount
     document.getElementById('cell-total-discount').textContent = formatNum(calc.discount.total);
     document.getElementById('cell-r1-discount').textContent = formatNum(calc.discount.r1);
     document.getElementById('cell-r2-discount').textContent = formatNum(calc.discount.r2);
     document.getElementById('cell-pump-discount').textContent = formatNum(calc.discount.pump);
     
-    // Row 8: Grand total
     document.getElementById('cell-total-grand').textContent = formatNum(calc.grand.total);
     document.getElementById('cell-r1-grand').textContent = formatNum(calc.grand.r1);
     document.getElementById('cell-r2-grand').textContent = formatNum(calc.grand.r2);
     document.getElementById('cell-pump-grand').textContent = formatNum(calc.grand.pump);
     
-    // Cost per unit rate explanation
     document.getElementById('cell-rate-per-unit').textContent = formatNum(calc.ratePerUnit);
     
-    // RENDER CHART
     renderTrendChart(rec.year);
 }
 
-// 6. Draw Trend Chart comparing YYYY-1 vs YYYY using Chart.js
+// 7. Line Chart Generator
 function renderTrendChart(selectedYear) {
     const canvas = document.getElementById('electricity-trend-chart');
     if (!canvas) return;
@@ -482,11 +561,9 @@ function renderTrendChart(selectedYear) {
     const prevYear = selectedYear - 1;
     document.getElementById('chart-description-text').textContent = `แสดงผลเปรียบเทียบข้อมูลรายเดือนของปี พ.ศ. ${prevYear} (เส้นประ) และ พ.ศ. ${selectedYear} (เส้นทึบ)`;
     
-    // Initialize empty arrays for data points (Jan - Dec)
     const prevData = { total: Array(12).fill(null), r1: Array(12).fill(null), r2: Array(12).fill(null), pump: Array(12).fill(null) };
     const currData = { total: Array(12).fill(null), r1: Array(12).fill(null), r2: Array(12).fill(null), pump: Array(12).fill(null) };
     
-    // Fill values based on records
     state.records.forEach(rec => {
         if (rec.year === prevYear && rec.month >= 1 && rec.month <= 12) {
             const calc = calculateMonthData(rec);
@@ -503,24 +580,20 @@ function renderTrendChart(selectedYear) {
         }
     });
     
-    // Detect theme grid line color
     const isDark = document.body.getAttribute('data-theme') === 'dark';
     const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
     const textColor = isDark ? '#d1d5db' : '#475569';
     
-    // Destroy existing chart instance to prevent render bugs
     if (trendChartInstance) {
         trendChartInstance.destroy();
     }
     
     const ctx = canvas.getContext('2d');
-    
-    // Colors variables
     const colors = {
-        total: { solid: '#3b82f6', border: '#3b82f6' }, // Blue
-        r1: { solid: '#f59e0b', border: '#f59e0b' },    // Orange/Yellow
-        r2: { solid: '#10b981', border: '#10b981' },    // Green
-        pump: { solid: '#ef4444', border: '#ef4444' }    // Red
+        total: { solid: '#3b82f6' },
+        r1: { solid: '#f59e0b' },
+        r2: { solid: '#10b981' },
+        pump: { solid: '#ef4444' }
     };
     
     trendChartInstance = new Chart(ctx, {
@@ -528,17 +601,14 @@ function renderTrendChart(selectedYear) {
         data: {
             labels: THAI_MONTHS,
             datasets: [
-                // YYYY (Current Selected Year) - Solid lines
                 {
                     label: `บิลรวม (${selectedYear})`,
                     data: currData.total,
                     borderColor: colors.total.solid,
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
                     borderWidth: 3,
                     tension: 0.3,
                     fill: false,
-                    pointRadius: 4,
-                    pointHoverRadius: 6
+                    pointRadius: 4
                 },
                 {
                     label: `ห้อง 1 เจ้าของ (${selectedYear})`,
@@ -567,8 +637,6 @@ function renderTrendChart(selectedYear) {
                     fill: false,
                     pointRadius: 4
                 },
-                
-                // YYYY - 1 (Previous Year) - Dashed lines
                 {
                     label: `บิลรวม (${prevYear})`,
                     data: prevData.total,
@@ -577,7 +645,7 @@ function renderTrendChart(selectedYear) {
                     borderDash: [5, 5],
                     tension: 0.3,
                     fill: false,
-                    pointRadius: 3
+                    pointRadius: 2
                 },
                 {
                     label: `ห้อง 1 เจ้าของ (${prevYear})`,
@@ -587,7 +655,7 @@ function renderTrendChart(selectedYear) {
                     borderDash: [5, 5],
                     tension: 0.3,
                     fill: false,
-                    pointRadius: 3
+                    pointRadius: 2
                 },
                 {
                     label: `ห้อง 2 ผู้เช่า (${prevYear})`,
@@ -597,7 +665,7 @@ function renderTrendChart(selectedYear) {
                     borderDash: [5, 5],
                     tension: 0.3,
                     fill: false,
-                    pointRadius: 3
+                    pointRadius: 2
                 },
                 {
                     label: `ปั้มน้ำ (${prevYear})`,
@@ -607,7 +675,7 @@ function renderTrendChart(selectedYear) {
                     borderDash: [5, 5],
                     tension: 0.3,
                     fill: false,
-                    pointRadius: 3
+                    pointRadius: 2
                 }
             ]
         },
@@ -620,9 +688,7 @@ function renderTrendChart(selectedYear) {
                     labels: {
                         color: textColor,
                         font: { family: 'Prompt, sans-serif', size: 12 },
-                        padding: 15,
-                        boxWidth: 24,
-                        boxHeight: 12
+                        padding: 15
                     }
                 },
                 tooltip: {
@@ -631,12 +697,8 @@ function renderTrendChart(selectedYear) {
                     callbacks: {
                         label: function(context) {
                             let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (context.parsed.y !== null) {
-                                label += Number(context.parsed.y).toFixed(2) + ' บาท';
-                            }
+                            if (label) label += ': ';
+                            if (context.parsed.y !== null) label += Number(context.parsed.y).toFixed(2) + ' บาท';
                             return label;
                         }
                     }
@@ -645,19 +707,14 @@ function renderTrendChart(selectedYear) {
             scales: {
                 x: {
                     grid: { color: gridColor },
-                    ticks: {
-                        color: textColor,
-                        font: { family: 'Prompt, sans-serif', size: 11 }
-                    }
+                    ticks: { color: textColor, font: { family: 'Prompt, sans-serif', size: 11 } }
                 },
                 y: {
                     grid: { color: gridColor },
                     ticks: {
                         color: textColor,
                         font: { family: 'Prompt, sans-serif', size: 11 },
-                        callback: function(value) {
-                            return value + ' ฿';
-                        }
+                        callback: function(value) { return value + ' ฿'; }
                     }
                 }
             }
@@ -665,7 +722,7 @@ function renderTrendChart(selectedYear) {
     });
 }
 
-// 7. Add/Edit Modal Calculations & Dynamic Lock Checks
+// 8. Form Modals and Dynamic Locked Inputs
 function updateDateStamp() {
     const stampInput = document.getElementById('date-stamp-label');
     if (!stampInput) return;
@@ -682,7 +739,6 @@ function openAddModal() {
     document.getElementById('data-entry-form').reset();
     document.getElementById('entry-id-field').value = '';
     
-    // Sync selections inside modal from the sidebar selections
     const selectedMonth = document.getElementById('history-month-select').value;
     const selectedYear = document.getElementById('history-year-select').value;
     
@@ -691,10 +747,8 @@ function openAddModal() {
     
     updateDateStamp();
     
-    // Dynamic Locking check based on month/year
     lookupPreviousMeterReadings();
     
-    // Add change listeners to auto check if month/year changes inside modal
     document.getElementById('bill-month').onchange = lookupPreviousMeterReadings;
     document.getElementById('bill-year').onchange = lookupPreviousMeterReadings;
     
@@ -705,7 +759,7 @@ function closeAddModal() {
     document.getElementById('add-data-modal').className = "modal-overlay";
 }
 
-// Dynamic Pre-Meter Lookups & Lock Check (A1 rules implemented)
+// Lock meter readings if previous month is present (A1 rule)
 function lookupPreviousMeterReadings() {
     const mSelect = document.getElementById('bill-month');
     const ySelect = document.getElementById('bill-year');
@@ -714,7 +768,6 @@ function lookupPreviousMeterReadings() {
     const targetMonth = Number(mSelect.value);
     const targetYear = Number(ySelect.value);
     
-    // Calculate preceding month
     let prevMonth = targetMonth - 1;
     let prevYear = targetYear;
     if (prevMonth === 0) {
@@ -722,7 +775,6 @@ function lookupPreviousMeterReadings() {
         prevYear = targetYear - 1;
     }
     
-    // Search records
     const prevRec = state.records.find(r => r.month === prevMonth && r.year === prevYear);
     
     const r2PrevInput = document.getElementById('r2-prev-meter-input');
@@ -731,7 +783,7 @@ function lookupPreviousMeterReadings() {
     const pumpPrevLabel = document.getElementById('pump-prev-label');
     
     if (prevRec) {
-        // PRECEDING MONTH FOUND -> AUTO FILL AND LOCK (A1 rule)
+        // Locked from previous month
         r2PrevInput.value = prevRec.meter_r2_curr;
         r2PrevInput.readOnly = true;
         r2PrevInput.className = "input-control readonly-input";
@@ -742,8 +794,7 @@ function lookupPreviousMeterReadings() {
         pumpPrevInput.className = "input-control readonly-input";
         pumpPrevLabel.innerHTML = 'มิเตอร์ปั้มน้ำเดือนก่อน <span style="color:var(--success); font-size:11px;">[ล็อก - ดึงอัตโนมัติ]</span>';
     } else {
-        // NO PRECEDING MONTH IN DATABASE -> OPEN FOR INITIAL ENTRY
-        // Check if there are any other entries, to give a helpful starting suggestion
+        // Unlocked for manual initial input
         const sortedDesc = [...state.records].sort((a, b) => {
             if (a.year !== b.year) return b.year - a.year;
             return b.month - a.month;
@@ -768,12 +819,11 @@ function lookupPreviousMeterReadings() {
     triggerLiveCalc();
 }
 
-// Auto-calculation logic for form inputs (Locked fields)
+// Auto-calculation for locked Pre-VAT and VAT fields
 function setupBillFormListeners() {
     const energy = document.getElementById('bill-energy-input');
     const service = document.getElementById('bill-service-input');
     const ft = document.getElementById('bill-ft-input');
-    
     const preVat = document.getElementById('bill-pre-vat-input');
     const vat = document.getElementById('bill-vat-input');
     
@@ -782,11 +832,9 @@ function setupBillFormListeners() {
         const valService = Number(service.value || 0);
         const valFt = Number(ft.value || 0);
         
-        // 1. รวมค่าไฟก่อนภาษี = พลังงาน + บริการ + ft
         const computedPreVat = valEnergy + valService + valFt;
         preVat.value = computedPreVat.toFixed(2);
         
-        // 2. VAT 7% = ก่อนภาษี * 0.07
         const computedVat = computedPreVat * 0.07;
         vat.value = computedVat.toFixed(2);
         
@@ -798,7 +846,6 @@ function setupBillFormListeners() {
     ft.addEventListener('input', autoCalcBillTotals);
 }
 
-// Live math calculations update inside form modal
 function triggerLiveCalc() {
     const billUnits = Number(document.getElementById('bill-units-input').value || 0);
     const billEnergy = Number(document.getElementById('bill-energy-input').value || 0);
@@ -821,7 +868,7 @@ function triggerLiveCalc() {
     document.getElementById('live-grand-val').textContent = `${grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท`;
 }
 
-// Save added or edited database record
+// 9. CRUD UI triggers
 function saveDataEntry(event) {
     event.preventDefault();
     
@@ -829,7 +876,6 @@ function saveDataEntry(event) {
     const month = Number(document.getElementById('bill-month').value);
     const year = Number(document.getElementById('bill-year').value);
     
-    // Check duplication only if creating a new record
     if (!idField) {
         const exist = state.records.find(r => r.month === month && r.year === year);
         if (exist) {
@@ -858,28 +904,22 @@ function saveDataEntry(event) {
         meter_pump_curr: Number(document.getElementById('pump-curr-meter-input').value || 0)
     };
     
-    if (idField) {
-        const index = state.records.findIndex(r => r.id === idField);
-        state.records[index] = record;
-    } else {
-        state.records.push(record);
-    }
-    
-    saveRecords();
-    closeAddModal();
-    
-    // Sync dropdown selections to match this saved record
-    document.getElementById('history-month-select').value = month;
-    document.getElementById('history-year-select').value = year;
-    
-    selectRecord(record.id);
+    // Save to Database Helper (writes to Firestore if configured, or falls back to LocalStorage)
+    saveRecord(record).then(() => {
+        closeAddModal();
+        
+        // Sync Dropdowns
+        document.getElementById('history-month-select').value = month;
+        document.getElementById('history-year-select').value = year;
+        
+        selectRecord(record.id);
+    });
 }
 
 function selectRecord(id) {
     state.currentRecordId = id;
     renderOverview();
     
-    // Update sidebar action button to Edit
     const rec = state.records.find(r => r.id === id);
     if (rec) {
         document.getElementById('sidebar-action-container').innerHTML = `
@@ -891,7 +931,6 @@ function selectRecord(id) {
     }
 }
 
-// Edit Existing Month
 function editCurrentMonth() {
     const rec = state.records.find(r => r.id === state.currentRecordId);
     if (!rec) return;
@@ -911,10 +950,8 @@ function editCurrentMonth() {
     document.getElementById('bill-vat-input').value = rec.bill_vat;
     document.getElementById('bill-discount-input').value = rec.bill_discount;
     
-    // Lookups will lock them if previous month is present
     lookupPreviousMeterReadings();
     
-    // Overwrite meter values with saved values for editing
     document.getElementById('r2-prev-meter-input').value = rec.meter_r2_prev;
     document.getElementById('r2-curr-meter-input').value = rec.meter_r2_curr;
     document.getElementById('pump-prev-meter-input').value = rec.meter_pump_prev;
@@ -923,7 +960,6 @@ function editCurrentMonth() {
     triggerLiveCalc();
 }
 
-// Delete Record
 function deleteCurrentMonth() {
     const rec = state.records.find(r => r.id === state.currentRecordId);
     if (!rec) return;
@@ -931,8 +967,7 @@ function deleteCurrentMonth() {
     const conf = confirm(`คุณต้องการลบข้อมูลรอบบิลเดือน ${THAI_MONTHS[rec.month - 1]} ${rec.year} ใช่หรือไม่? ยืนยันการลบแล้วข้อมูลทั้งหมดของเดือนนี้จะถูกลบถาวร`);
     if (!conf) return;
     
-    state.records = state.records.filter(r => r.id !== state.currentRecordId);
-    saveRecords();
-    
-    handleHistorySelectChange();
+    deleteRecord(state.currentRecordId).then(() => {
+        handleHistorySelectChange();
+    });
 }
