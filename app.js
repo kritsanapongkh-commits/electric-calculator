@@ -380,7 +380,7 @@ function calculateMonthData(rec) {
     // Room 2 (O)
     const r2Energy = r2Units * ratePerUnit;
     const r2Service = billService / 3;
-    const r2Ft = billFt / 3;
+    const r2Ft = r2Units/billUnits * billFt;
     const r2PreVat = r2Energy + r2Service + r2Ft;
     const r2Vat = r2PreVat * 0.07;
     const r2Discount = billDiscount / 3;
@@ -389,7 +389,7 @@ function calculateMonthData(rec) {
     // Pump (P)
     const pumpEnergy = pumpUnits * ratePerUnit;
     const pumpService = billService / 3;
-    const pumpFt = billFt / 3;
+    const pumpFt = pumpUnits/billUnits * billFt;
     const pumpPreVat = pumpEnergy + pumpService + pumpFt;
     const pumpVat = pumpPreVat * 0.07;
     const pumpDiscount = billDiscount / 3;
