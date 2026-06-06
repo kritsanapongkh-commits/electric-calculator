@@ -145,7 +145,7 @@
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                             </div>
                             <div class="stat-info">
-                                <span class="stat-label">บิลไฟหลักทั้งหมด</span>
+                                <span class="stat-label">บิลค่าไฟการไฟฟ้า</span>
                                 <span class="stat-value" id="stat-total-bill">0.00 ฿</span>
                             </div>
                         </div>
@@ -154,7 +154,7 @@
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                             </div>
                             <div class="stat-info">
-                                <span class="stat-label">ค่าไฟ ห้อง 1 (เจ้าของ)</span>
+                                <span class="stat-label">ค่าไฟ ห้อง 1 (ร้านค้า)</span>
                                 <span class="stat-value" id="stat-r1-bill">0.00 ฿</span>
                             </div>
                         </div>
@@ -163,7 +163,7 @@
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                             </div>
                             <div class="stat-info">
-                                <span class="stat-label">ค่าไฟ ห้อง 2 (ผู้เช่า)</span>
+                                <span class="stat-label">ค่าไฟ ห้อง 2 (ร้านซ่อมรถ)</span>
                                 <span class="stat-value" id="stat-r2-bill">0.00 ฿</span>
                             </div>
                         </div>
@@ -222,8 +222,8 @@
                                     <tr>
                                         <th id="th-month-label">เดือน พฤษภาคม 69</th>
                                         <th>รวมบิลค่าไฟ</th>
-                                        <th>ห้อง 1 (เจ้าของ)</th>
-                                        <th>ห้อง 2 (ผู้เช่า)</th>
+                                        <th>ห้อง 1 (ร้านค้า)</th>
+                                        <th>ห้อง 2 (ร้านซ่อมรถ)</th>
                                         <th>ปั้มน้ำ</th>
                                         <th class="cell-center">หน่วย</th>
                                     </tr>
@@ -278,7 +278,7 @@
                                         <td class="cell-center">บาท</td>
                                     </tr>
                                     <tr>
-                                        <td><strong>ส่วนลด ft</strong></td>
+                                        <td><strong>ส่วนลด</strong></td>
                                         <td id="cell-total-discount" class="cell-right">-</td>
                                         <td id="cell-r1-discount" class="cell-right">-</td>
                                         <td id="cell-r2-discount" class="cell-right">-</td>
@@ -373,7 +373,7 @@
                             </div>
                             
                             <div class="form-group">
-                                <label for="bill-units-input">หน่วยที่ใช้ทั้งหมด (ยูนิตในบิลหลัก)</label>
+                                <label for="bill-units-input">หน่วยที่ใช้ทั้งหมด (ยูนิตในบิลค่าไฟ)</label>
                                 <input type="number" step="any" id="bill-units-input" class="input-control" required placeholder="0.00" oninput="triggerLiveCalc()">
                             </div>
                             <div class="form-group">
@@ -384,7 +384,7 @@
                             <div class="form-row-2col">
                                 <div class="form-group">
                                     <label for="bill-service-input">ค่าบริการรายเดือน</label>
-                                    <input type="number" step="any" id="bill-service-input" class="input-control" required placeholder="38.22" oninput="triggerLiveCalc()">
+                                    <input type="number" step="any" id="bill-service-input" class="input-control" required placeholder="24.62" oninput="triggerLiveCalc()">
                                 </div>
                                 <div class="form-group">
                                     <label for="bill-ft-input">ค่า ft (บาท)</label>
